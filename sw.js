@@ -1,7 +1,8 @@
-const CACHE_NAME = 'vetflow-v1';
+﻿const CACHE_NAME = 'vetflow-v1';
 const urlsToCache = [
   './',
   './index.html',
+  './apps.html',
   './kunden_app.html',
   './tierarzt_app.html',
   './praxis_dashboard.html',
@@ -22,3 +23,4 @@ self.addEventListener('fetch', event => {
     fetch(event.request).catch(() => caches.match(event.request))
   );
 });
+
