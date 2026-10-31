@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="de">
 <head>
   <meta charset="UTF-8" />
@@ -50,6 +50,14 @@
       });
     }
     if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
+  </script>
+  <script>
+    // Demo-Modus: Links zu den Apps bekommen ?demo=1
+    if (new URLSearchParams(location.search).get('demo') === '1') sessionStorage.setItem('tp_demo', '1');
+    if (sessionStorage.getItem('tp_demo') === '1') {
+      document.querySelectorAll('a[href$=".html"]').forEach(a => { if (!a.href.endsWith('index.html')) a.href += '?demo=1'; });
+      const h = document.querySelector('h1'); if (h) h.insertAdjacentHTML('afterend', '<p class="text-[11px] text-teal-400 mt-2">Demo mit Beispieldaten, keine echten Daten</p>');
+    }
   </script>
 </body>
 </html>

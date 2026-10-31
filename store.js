@@ -1,7 +1,11 @@
 // Gemeinsame Datenschicht: Supabase (live) oder localStorage (Demo-Modus).
 (function () {
   const C = window.TP_CONFIG;
-  const live = !!(C.SUPABASE_URL && C.SUPABASE_KEY && window.supabase);
+
+  // Demo-Modus für Interessenten: ?demo=1 → Beispieldaten nur im eigenen Browser, ohne Anmeldung, nie die Live-Datenbank.
+  if (new URLSearchParams(location.search).get('demo') === '1') sessionStorage.setItem('tp_demo', '1');
+  const demo = sessionStorage.getItem('tp_demo') === '1';
+  const live = !demo && !!(C.SUPABASE_URL && C.SUPABASE_KEY && window.supabase);
   const sb = live ? window.supabase.createClient(C.SUPABASE_URL, C.SUPABASE_KEY) : null;
   const listeners = {};
 
@@ -98,6 +102,45 @@
     }
   };
 
+  function seedDemo() {
+    if (!demo || localStorage.getItem('tp_demo_seeded')) return;
+    const now = new Date().toISOString();
+    const done = { vet: 'Dr. Anna Keller', hours: 0.5, rate: 180, diagnosis: 'Gesund, Impfung aufgefrischt', treatment: 'Jahresimpfung, Allgemeinuntersuchung',
+      materialDesc: 'Impfstoff', labor: '90.00', mat: '35.00', fee: '0.00', netto: '125.00', vat: '10.13', brutto: '135.13', date: new Date().toLocaleDateString('de-CH') };
+    lset('team', [
+      { id: 1, created_at: now, name: 'Dr. Anna Keller', category: 'Leitung', role: 'Praxisleitung', rate: 180, phone: '+41 79 111 22 33', status: 'Bereit' },
+      { id: 2, created_at: now, name: 'Dr. Marco Weber', category: 'Tierarzt', role: 'Tierarzt/Tierärztin', rate: 150, phone: '+41 79 222 33 44', status: 'Unterwegs' },
+      { id: 3, created_at: now, name: 'Sandra Meier', category: 'TFA', role: 'Tiermed. Praxisassistenz', rate: 75, phone: '+41 79 333 44 55', status: 'Bereit' }
+    ]);
+    lset('customers', [
+      { id: 1, created_at: now, name: 'Markus Weber', email: 'markus.weber@example.ch', phone: '+41 79 987 65 43', address: 'Bahnhofstr. 12, 8001 Zürich', animals: 'Bello (Hund, Labrador)', notes: 'Stammkunde seit 2023' },
+      { id: 2, created_at: now, name: 'Stefan Fischer', email: 'stefan.fischer@example.ch', phone: '+41 78 555 44 33', address: 'Hauptstr. 88, 5400 Baden', animals: 'Minka (Katze); Felix (Katze)', notes: 'Wohnungskatzen, Transportbox nötig' }
+    ]);
+    lset('tickets', [
+      { id: 1, created_at: now, customer_name: 'Markus Weber', email: 'markus.weber@example.ch', phone: '+41 79 987 65 43', address: 'Bahnhofstr. 12, 8001 Zürich', patient_name: 'Bello', species: 'Hund', complaint: 'Hat Schokolade gefressen, erbricht seit 1 Stunde', urgency: 'Notfall', status: 'Neu', vet: null, report: null },
+      { id: 2, created_at: now, customer_name: 'Stefan Fischer', email: 'stefan.fischer@example.ch', phone: '+41 78 555 44 33', address: 'Hauptstr. 88, 5400 Baden', patient_name: 'Minka', species: 'Katze', complaint: 'Humpelt seit gestern, Pfote geschwollen', urgency: 'Dringend', status: 'In Bearbeitung', vet: 'Dr. Marco Weber', report: null },
+      { id: 3, created_at: now, customer_name: 'Lea Frei', email: 'lea.frei@example.ch', phone: '+41 76 123 45 67', address: 'Seestrasse 5, 8700 Küsnacht', patient_name: 'Rex', species: 'Hund', complaint: 'Jährliche Impfung', urgency: 'Normal', status: 'Abgeschlossen & Verrechnet', vet: 'Dr. Anna Keller', report: done }
+    ]);
+    localStorage.setItem('tp_demo_seeded', '1');
+  }
+  seedDemo();
+
+  function demoBar() {
+    if (!demo) return;
+    const bar = document.createElement('div');
+    bar.style.cssText = 'position:fixed;left:50%;bottom:12px;transform:translateX(-50%);z-index:9999;background:#10201e;color:#fff8ef;font:600 12px Inter,system-ui,sans-serif;padding:8px 14px;border-radius:999px;box-shadow:0 8px 24px rgba(0,0,0,.35);display:flex;gap:12px;align-items:center;white-space:nowrap;max-width:94vw';
+    bar.innerHTML = '<span>🐾 Demo mit Beispieldaten</span><a href="apps.html" style="color:#2dd4bf">Alle Apps</a><a href="#" id="tp-demo-reset" style="color:#ff6b57">Zurücksetzen</a><a href="index.html" id="tp-demo-exit" style="color:#fff8ef;opacity:.7">Beenden</a>';
+    document.body.appendChild(bar);
+    document.getElementById('tp-demo-reset').onclick = e => {
+      e.preventDefault();
+      ['tickets', 'team', 'customers'].forEach(t => localStorage.removeItem('tp_data_' + t));
+      localStorage.removeItem('tp_demo_seeded'); localStorage.removeItem('tp_my_tokens');
+      location.reload();
+    };
+    document.getElementById('tp-demo-exit').onclick = () => sessionStorage.removeItem('tp_demo');
+  }
+  document.addEventListener('DOMContentLoaded', demoBar);
+
   const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const money = n => (Math.round(n * 100) / 100).toFixed(2);
 
@@ -110,8 +153,9 @@
 
   // Anmeldung: live = Supabase Auth (E-Mail + Passwort, Rolle aus Tabelle staff); Demo = Passwort aus config.js
   const auth = {
-    live,
+    live, demo,
     async role() {
+      if (demo) return 'praxis';
       if (!live) return sessionStorage.getItem('tp_demo_role');
       const { data } = await sb.auth.getSession();
       if (!data.session) return null;
@@ -140,6 +184,7 @@
     },
     async logout() {
       sessionStorage.removeItem('tp_demo_role');
+      if (demo) { sessionStorage.removeItem('tp_demo'); location.href = 'index.html'; return; }
       if (live) await sb.auth.signOut();
       location.reload();
     }
