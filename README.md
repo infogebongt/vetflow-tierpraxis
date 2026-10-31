@@ -25,7 +25,12 @@ Demo-Passwörter (in `config.js` ändern): Praxis `Praxis2026`, Team `Tierarzt20
 2. `SUPABASE_URL` und `SUPABASE_KEY` (publishable key) in `config.js` eintragen.
 3. Ordner auf einen Webserver legen (Netlify, Vercel, GitHub Pages).
 
-## Wichtig
+## Anmeldung & Rechte (Live-Betrieb)
 
-- Passwörter im Frontend und offene `anon`-Policies sind nur ein Sichtschutz. Vor echten Patienten-/Halterdaten: Supabase Auth + restriktive Policies (Datenschutz DSG/DSGVO).
+- Praxis und Team melden sich mit E-Mail + Passwort an (Supabase Auth). Wer in der Tabelle `staff` steht, hat eine Rolle: `praxis` (alles) oder `team` (Fälle lesen/bearbeiten, Team lesen).
+- Neue Mitarbeitende: Benutzer unter Authentication > Users anlegen, dann `insert into staff (user_id, role) values ('<uuid>', 'team');`.
+- Tierhalter sind nicht angemeldet. Sie können nur über die Funktionen `submit_ticket` und `my_tickets` eine Anfrage senden und mit ihrem geheimen Token ihre eigenen Anfragen sehen. Kein direkter Tabellenzugriff.
+- Die Passwörter in `config.js` gelten nur im Demo-Modus.
+
+## Wichtig
 - Die Tarife (TFA 75 / Assistenz 120 / Tierarzt 150 / Leitung 180 CHF/h) sind Beispielwerte, bitte an die Praxis anpassen. MwSt. 8.1 % (CH).
