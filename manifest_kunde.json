@@ -1,0 +1,9 @@
+{
+  "name": "VetFlow Tierhalter-Portal",
+  "short_name": "Tierhalter",
+  "start_url": "./kunden_app.html",
+  "display": "standalone",
+  "background_color": "#020617",
+  "theme_color": "#020617",
+  "icons": [{ "src": "icon.svg", "sizes": "any", "type": "image/svg+xml" }]
+}

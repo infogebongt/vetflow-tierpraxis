@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>VetFlow – Tierarzt-App</title>
+  <link rel="manifest" href="manifest_tierarzt.json">
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <meta name="theme-color" content="#020617">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="config.js"></script>
+  <script src="store.js"></script>
+</head>
+<body class="bg-slate-950 text-slate-100 font-sans antialiased">
+
+  <div id="auth-overlay" class="fixed inset-0 bg-slate-950/95 backdrop-blur-md z-[100] flex items-center justify-center p-4">
+    <div class="bg-slate-900 border border-slate-800 p-8 rounded-3xl max-w-sm w-full space-y-5 text-center shadow-2xl">
+      <div class="w-12 h-12 rounded-2xl bg-teal-500/10 border border-teal-500/20 flex items-center justify-center mx-auto text-xl">🩺</div>
+      <div>
+        <h2 class="text-xl font-bold text-teal-400">Tierarzt-App</h2>
+        <p class="text-xs text-slate-400 mt-1">Bitte gib das Team-Passwort ein.</p>
+      </div>
+      <div class="space-y-3">
+        <input type="password" id="pw" placeholder="Passwort eingeben..." class="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-center text-slate-100 focus:outline-none focus:border-teal-500 text-sm font-mono tracking-widest" onkeypress="if(event.key==='Enter') checkPw()" />
+        <button onclick="checkPw()" class="w-full py-3 bg-teal-500 hover:bg-teal-400 text-slate-950 font-bold text-sm rounded-xl transition-all">Anmelden</button>
+      </div>
+      <p id="pw-err" class="text-xs text-red-400 font-medium hidden">⚠️ Falsches Passwort!</p>
+    </div>
+  </div>
+
+  <div id="app" class="hidden flex-col min-h-screen max-w-md mx-auto bg-slate-950 border-x border-slate-800 shadow-2xl">
+    <header class="p-4 bg-slate-900 border-b border-slate-800 flex items-center justify-between sticky top-0 z-50">
+      <div class="flex items-center gap-2">
+        <div class="w-3 h-3 rounded-full bg-emerald-500 animate-pulse"></div>
+        <h1 class="font-bold text-lg text-teal-400 tracking-wide">🩺 VetFlow Team</h1>
+      </div>
+      <select id="me" onchange="selectMe()" class="bg-slate-950 text-slate-200 text-xs px-2.5 py-1.5 rounded-xl border border-slate-700 font-bold focus:outline-none focus:border-teal-500"></select>
+    </header>
+
+    <main class="flex-1 p-4 space-y-4">
+      <div class="flex justify-between items-center px-1">
+        <h2 class="text-xs font-bold text-slate-400 uppercase tracking-wider">Meine zugewiesenen Fälle</h2>
+        <span id="count" class="text-xs font-mono text-teal-400 font-bold">0 Fälle</span>
+      </div>
+      <div id="list" class="space-y-3"></div>
+    </main>
+  </div>
+
+  <div id="modal" class="fixed inset-0 bg-slate-950/90 backdrop-blur-sm hidden items-center justify-center p-4 z-50 overflow-y-auto">
+    <div class="bg-slate-900 border border-slate-800 p-6 rounded-2xl max-w-md w-full space-y-4 shadow-2xl my-auto">
+      <h3 class="text-lg font-bold text-teal-400">📝 Behandlung dokumentieren</h3>
+      <input type="hidden" id="rap-id" />
+      <div id="rap-patient" class="bg-slate-950 p-3 rounded-xl border border-slate-800 text-xs text-slate-300"></div>
+
+      <div class="space-y-3 text-xs">
+        <div>
+          <label class="text-slate-400 font-medium">Behandlungszeit (Std.)</label>
+          <input type="number" step="0.25" id="rap-hours" value="0.5" class="w-full mt-1 bg-slate-950 border border-slate-800 rounded-xl p-3 text-slate-100 focus:outline-none focus:border-teal-500" />
+        </div>
+        <div>
+          <label class="text-slate-400 font-medium">Diagnose</label>
+          <input type="text" id="rap-diagnosis" placeholder="z. B. Gastroenteritis" class="w-full mt-1 bg-slate-950 border border-slate-800 rounded-xl p-3 text-slate-100 focus:outline-none focus:border-teal-500" />
+        </div>
+        <div>
+          <label class="text-slate-400 font-medium">Behandlung / Massnahmen</label>
+          <textarea id="rap-treatment" rows="2" placeholder="z. B. Infusion, Antiemetikum s.c., Diätfutter 3 Tage" class="w-full mt-1 bg-slate-950 border border-slate-800 rounded-xl p-3 text-slate-100 focus:outline-none focus:border-teal-500"></textarea>
+        </div>
+        <div>
+          <label class="text-slate-400 font-medium">Medikamente & Material</label>
+          <textarea id="rap-material" rows="2" placeholder="z. B. Cerenia 1 ml, Infusionsset" class="w-full mt-1 bg-slate-950 border border-slate-800 rounded-xl p-3 text-slate-100 focus:outline-none focus:border-teal-500"></textarea>
+        </div>
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="text-slate-400 font-medium">Medikamente/Material (CHF netto)</label>
+            <input type="number" id="rap-mat-cost" value="0" class="w-full mt-1 bg-slate-950 border border-slate-800 rounded-xl p-3 text-slate-100 focus:outline-none focus:border-teal-500" />
+          </div>
+          <div>
+            <label class="text-slate-400 font-medium">Notfalltaxe (CHF netto)</label>
+            <input type="number" id="rap-fee" value="0" class="w-full mt-1 bg-slate-950 border border-slate-800 rounded-xl p-3 text-slate-100 focus:outline-none focus:border-teal-500" />
+          </div>
+        </div>
+      </div>
+
+      <div class="flex gap-2 pt-2">
+        <button onclick="closeModal()" class="flex-1 py-3 bg-slate-800 text-slate-300 font-bold text-xs rounded-xl">Abbrechen</button>
+        <button onclick="submitReport()" class="flex-1 py-3 bg-teal-500 text-slate-950 font-bold text-xs rounded-xl active:scale-95">✓ An Praxis senden</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const { store, esc, money, calcInvoice, C } = TP;
+    const $ = id => document.getElementById(id);
+    let team = [], tickets = [];
+
+    function checkPw() {
+      if ($('pw').value === C.PASSWORDS.team) unlock();
+      else $('pw-err').classList.remove('hidden');
+    }
+
+    async function unlock() {
+      $('auth-overlay').classList.add('hidden');
+      $('app').classList.remove('hidden');
+      $('app').classList.add('flex');
+      sessionStorage.setItem('tp_team_auth', 'true');
+      await load();
+      store.subscribe('tickets', load);
+      store.subscribe('team', load);
+    }
+
+    window.addEventListener('DOMContentLoaded', () => {
+      if (sessionStorage.getItem('tp_team_auth') === 'true') unlock();
+    });
+
+    async function load() {
+      try {
+        [team, tickets] = await Promise.all([store.list('team'), store.list('tickets')]);
+      } catch (e) { $('list').innerHTML = `<p class="text-xs text-red-400">Fehler: ${esc(e.message)}</p>`; return; }
+      const saved = localStorage.getItem('tp_me');
+      $('me').innerHTML = team.map(t => `<option value="${esc(t.name)}" ${t.name === saved ? 'selected' : ''}>🩺 ${esc(t.name)} (${esc(t.category)})</option>`).join('');
+      render();
+    }
+
+    function selectMe() { localStorage.setItem('tp_me', $('me').value); render(); }
+
+    const URG = { Notfall: 'bg-red-500/20 text-red-400', Dringend: 'bg-orange-500/20 text-orange-400', Normal: 'bg-emerald-500/20 text-emerald-400' };
+    const DONE = 'Abgeschlossen & Verrechnet';
+
+    function render() {
+      if (!team.length) {
+        $('list').innerHTML = '<div class="p-6 bg-slate-900 rounded-2xl border border-slate-800 text-slate-400 text-sm text-center">Noch kein Team angelegt. Bitte in der Praxis-Zentrale Teammitglieder erfassen.</div>';
+        $('count').innerText = '0 Fälle';
+        return;
+      }
+      const me = $('me').value;
+      const mine = tickets.filter(t => t.vet === me);
+      $('count').innerText = `${mine.length} Fälle`;
+
+      if (!mine.length) {
+        $('list').innerHTML = `<div class="p-8 bg-slate-900 rounded-2xl border border-slate-800 text-slate-400 text-sm text-center space-y-2">
+          <p class="text-2xl">☕</p><p class="font-bold text-slate-200">Aktuell keine zugewiesenen Fälle</p>
+          <p class="text-xs text-slate-500">Sobald die Praxis dir einen Patienten zuteilt, erscheint er sofort hier.</p></div>`;
+        return;
+      }
+
+      $('list').innerHTML = mine.map(t => {
+        const done = t.status === DONE;
+        const tel = (t.phone || '').replace(/[^+\d]/g, '');
+        return `
+        <div class="bg-slate-900 border border-slate-800 p-5 rounded-2xl space-y-3.5 border-l-4 ${done ? 'border-l-sky-500' : 'border-l-teal-500'} shadow-lg">
+          <div class="flex justify-between items-start">
+            <div>
+              <span class="font-mono text-xs font-bold text-teal-400 bg-teal-500/10 px-2.5 py-1 rounded border border-teal-500/20">#${esc(t.id)}</span>
+              <h3 class="font-bold text-base text-slate-100 mt-2">🐾 ${esc(t.patient_name)} <span class="text-xs text-slate-400 font-normal">(${esc(t.species)})</span></h3>
+              <p class="text-xs text-slate-400">Halter: ${esc(t.customer_name)}</p>
+            </div>
+            <div class="flex flex-col items-end gap-1">
+              <span class="text-[10px] px-2.5 py-1 rounded-full font-bold ${URG[t.urgency] || URG.Normal}">${esc(t.urgency)}</span>
+              <span class="text-[10px] px-2.5 py-1 rounded-full font-bold ${done ? 'bg-sky-500/20 text-sky-400' : 'bg-teal-500/20 text-teal-400'}">${esc(t.status)}</span>
+            </div>
+          </div>
+          <div class="bg-slate-950 p-3 rounded-xl border border-slate-800 space-y-1">
+            <p class="text-xs text-slate-400 font-medium">Beschwerden:</p>
+            <p class="text-sm font-bold text-slate-100">${esc(t.complaint)}</p>
+          </div>
+          <div class="grid grid-cols-2 gap-2 pt-1">
+            <a href="https://maps.google.com/?q=${encodeURIComponent(t.address || '')}" target="_blank" rel="noopener" class="flex items-center justify-center gap-1.5 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold rounded-xl border border-slate-700">📍 Navi (Hausbesuch)</a>
+            ${tel ? `<a href="tel:${esc(tel)}" class="flex items-center justify-center gap-1.5 py-2.5 bg-emerald-500/20 text-emerald-400 text-xs font-bold rounded-xl border border-emerald-500/30">📞 Halter anrufen</a>`
+                  : '<button disabled class="py-2.5 bg-slate-950 text-slate-600 text-xs font-bold rounded-xl">Keine Tel. Nr.</button>'}
+          </div>
+          ${done ? '' : `<button onclick="openModal(${Number(t.id)})" class="w-full py-3 bg-teal-500 hover:bg-teal-400 text-slate-950 font-bold text-xs rounded-xl active:scale-95 transition-all">📝 Behandlung dokumentieren</button>`}
+        </div>`;
+      }).join('');
+    }
+
+    function openModal(id) {
+      const t = tickets.find(x => x.id === id);
+      if (!t) return;
+      $('rap-id').value = id;
+      $('rap-patient').innerHTML = `🐾 <b>${esc(t.patient_name)}</b> (${esc(t.species)}) | Halter: ${esc(t.customer_name)}`;
+      $('modal').classList.remove('hidden');
+      $('modal').classList.add('flex');
+    }
+    function closeModal() { $('modal').classList.add('hidden'); $('modal').classList.remove('flex'); }
+
+    async function submitReport() {
+      const id = parseInt($('rap-id').value);
+      const vet = team.find(t => t.name === $('me').value);
+      const hours = parseFloat($('rap-hours').value) || 0;
+      const rate = vet ? Number(vet.rate) : 0;
+      const mat = parseFloat($('rap-mat-cost').value) || 0;
+      const fee = parseFloat($('rap-fee').value) || 0;
+      const inv = calcInvoice({ hours, rate, mat, fee });
+
+      const report = {
+        vet: vet ? vet.name : $('me').value, hours, rate,
+        diagnosis: $('rap-diagnosis').value.trim() || '-',
+        treatment: $('rap-treatment').value.trim() || '-',
+        materialDesc: $('rap-material').value.trim() || 'Keines',
+        labor: money(inv.labor), mat: money(inv.mat), fee: money(inv.fee),
+        netto: money(inv.netto), vat: money(inv.vat), brutto: money(inv.brutto),
+        date: new Date().toLocaleDateString('de-CH')
+      };
+      try {
+        await store.update('tickets', id, { status: DONE, report });
+        closeModal();
+        alert('✓ Behandlung an die Praxis übermittelt.');
+        await load();
+      } catch (e) { alert('Fehler beim Senden: ' + e.message); }
+    }
+  </script>
+</body>
+</html>

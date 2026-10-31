@@ -1,0 +1,459 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>VetFlow – Praxis-Zentrale</title>
+  <link rel="manifest" href="manifest_praxis.json">
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <meta name="theme-color" content="#020617">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="config.js"></script>
+  <script src="store.js"></script>
+</head>
+<body class="bg-slate-950 text-slate-100 font-sans antialiased min-h-screen flex flex-col">
+
+  <div id="auth-overlay" class="fixed inset-0 bg-slate-950/95 backdrop-blur-md z-[100] flex items-center justify-center p-4">
+    <div class="bg-slate-900 border border-slate-800 p-8 rounded-3xl max-w-sm w-full space-y-5 text-center shadow-2xl">
+      <div class="w-12 h-12 rounded-2xl bg-teal-500/10 border border-teal-500/20 flex items-center justify-center mx-auto text-xl">🔒</div>
+      <div>
+        <h2 class="text-xl font-bold text-teal-400">Praxis-Zentrale</h2>
+        <p class="text-xs text-slate-400 mt-1">Bitte gib das Praxis-Passwort ein.</p>
+      </div>
+      <div class="space-y-3">
+        <input type="password" id="pw" placeholder="Passwort eingeben..." class="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-center text-slate-100 focus:outline-none focus:border-teal-500 text-sm font-mono tracking-widest" onkeypress="if(event.key==='Enter') checkPw()" />
+        <button onclick="checkPw()" class="w-full py-3 bg-teal-500 hover:bg-teal-400 text-slate-950 font-bold text-sm rounded-xl transition-all">Entsperren</button>
+      </div>
+      <p id="pw-err" class="text-xs text-red-400 font-medium hidden">⚠️ Falsches Passwort!</p>
+    </div>
+  </div>
+
+  <div id="app" class="hidden flex-col min-h-screen w-full">
+    <header class="p-4 bg-slate-900 border-b border-slate-800 sticky top-0 z-40">
+      <div class="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
+        <div class="flex items-center gap-3">
+          <div class="w-3.5 h-3.5 rounded-full bg-emerald-500 animate-pulse"></div>
+          <h1 class="font-bold text-xl text-teal-400 tracking-wide">🐾 VetFlow <span class="text-xs text-slate-400 font-normal">| Praxis-Zentrale</span></h1>
+          <span id="mode" class="text-[10px] px-2 py-0.5 rounded-full border"></span>
+        </div>
+        <nav class="flex bg-slate-950 p-1.5 rounded-xl border border-slate-800 overflow-x-auto max-w-full gap-1" id="nav"></nav>
+      </div>
+    </header>
+    <main id="content" class="flex-1 p-4 md:p-6 max-w-7xl mx-auto w-full space-y-6"></main>
+  </div>
+
+  <!-- Modal: Tierhalter -->
+  <div id="modal-customer" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm hidden items-center justify-center p-4 z-50">
+    <div class="bg-slate-900 border border-slate-800 p-6 rounded-2xl max-w-md w-full space-y-4 shadow-2xl">
+      <h3 class="text-lg font-bold text-teal-400">👥 Neuen Tierhalter anlegen</h3>
+      <div class="space-y-3 text-xs">
+        <div><label class="text-slate-400 font-medium">Vor- & Nachname *</label><input id="c-name" class="inp" placeholder="z. B. Markus Weber" /></div>
+        <div><label class="text-slate-400 font-medium">E-Mail</label><input id="c-email" type="email" class="inp" placeholder="markus@weber.ch" /></div>
+        <div><label class="text-slate-400 font-medium">Telefon</label><input id="c-phone" class="inp" placeholder="+41 79 987 65 43" /></div>
+        <div><label class="text-slate-400 font-medium">Adresse</label><input id="c-address" class="inp" placeholder="Bahnhofstrasse 12, 8001 Zürich" /></div>
+        <div><label class="text-slate-400 font-medium">Tiere (Name, Art, Rasse)</label><input id="c-animals" class="inp" placeholder="z. B. Bello (Hund, Labrador); Minka (Katze)" /></div>
+        <div><label class="text-slate-400 font-medium">Notizen</label><textarea id="c-notes" rows="2" class="inp" placeholder="z. B. Allergie Patient, Kartenzahlung"></textarea></div>
+      </div>
+      <div class="flex gap-2 pt-2">
+        <button onclick="closeModal('modal-customer')" class="flex-1 py-2.5 bg-slate-800 text-slate-300 font-bold text-xs rounded-xl">Abbrechen</button>
+        <button onclick="addCustomer()" class="flex-1 py-2.5 bg-teal-500 text-slate-950 font-bold text-xs rounded-xl">Speichern</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Team -->
+  <div id="modal-team" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm hidden items-center justify-center p-4 z-50">
+    <div class="bg-slate-900 border border-slate-800 p-6 rounded-2xl max-w-md w-full space-y-4 shadow-2xl">
+      <h3 id="team-title" class="text-lg font-bold text-teal-400">🩺 Teammitglied anlegen</h3>
+      <input type="hidden" id="t-id" />
+      <div class="space-y-3 text-xs">
+        <div><label class="text-slate-400 font-medium">Name *</label><input id="t-name" class="inp" placeholder="z. B. Dr. Anna Keller" /></div>
+        <div>
+          <label class="text-slate-400 font-medium">Funktion / Stundensatz-Tarif</label>
+          <select id="t-cat" onchange="syncRate()" class="inp"></select>
+        </div>
+        <div><label class="text-slate-400 font-medium">Stundensatz (CHF exkl. MwSt.)</label><input id="t-rate" type="number" class="inp" /></div>
+        <div><label class="text-slate-400 font-medium">Telefon</label><input id="t-phone" class="inp" placeholder="+41 79 123 45 67" /></div>
+      </div>
+      <div class="flex gap-2 pt-2">
+        <button onclick="closeModal('modal-team')" class="flex-1 py-2.5 bg-slate-800 text-slate-300 font-bold text-xs rounded-xl">Abbrechen</button>
+        <button onclick="saveTeam()" class="flex-1 py-2.5 bg-teal-500 text-slate-950 font-bold text-xs rounded-xl">Speichern</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Behandlung / Rapport -->
+  <div id="modal-rapport" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm hidden items-center justify-center p-4 z-50 overflow-y-auto">
+    <div class="bg-slate-900 border border-slate-800 p-6 rounded-2xl max-w-md w-full space-y-4 shadow-2xl my-auto">
+      <h3 class="text-lg font-bold text-teal-400">📝 Behandlung & Verrechnung</h3>
+      <input type="hidden" id="r-id" />
+      <div class="space-y-3 text-xs">
+        <div class="bg-slate-950 p-3 rounded-xl border border-slate-800 flex justify-between items-center">
+          <span class="text-slate-400">Behandelnde Person:</span><span id="r-vet" class="font-bold text-teal-400"></span>
+        </div>
+        <div class="grid grid-cols-2 gap-3">
+          <div><label class="text-slate-400 font-medium">Behandlungszeit (Std.)</label><input id="r-hours" type="number" step="0.25" value="0.5" oninput="calcModal()" class="inp" /></div>
+          <div><label class="text-slate-400 font-medium">Stundensatz (CHF)</label><input id="r-rate" type="number" oninput="calcModal()" class="inp" /></div>
+        </div>
+        <div><label class="text-slate-400 font-medium">Diagnose</label><input id="r-diagnosis" class="inp" placeholder="z. B. Gastroenteritis" /></div>
+        <div><label class="text-slate-400 font-medium">Behandlung / Massnahmen</label><textarea id="r-treatment" rows="2" class="inp"></textarea></div>
+        <div><label class="text-slate-400 font-medium">Medikamente & Material</label><textarea id="r-material" rows="2" class="inp" placeholder="z. B. Cerenia 1 ml, Infusionsset"></textarea></div>
+        <div class="grid grid-cols-2 gap-3">
+          <div><label class="text-slate-400 font-medium">Medikamente/Material (CHF)</label><input id="r-mat" type="number" value="0" oninput="calcModal()" class="inp" /></div>
+          <div><label class="text-slate-400 font-medium">Notfalltaxe (CHF)</label><input id="r-fee" type="number" value="0" oninput="calcModal()" class="inp" /></div>
+        </div>
+        <div class="bg-slate-950 p-3.5 rounded-xl border border-slate-800 space-y-1.5">
+          <div class="flex justify-between text-slate-400"><span>Netto Total:</span><span id="r-netto" class="font-mono"></span></div>
+          <div class="flex justify-between text-slate-400"><span id="r-vat-label"></span><span id="r-vat" class="font-mono text-teal-400/80"></span></div>
+          <div class="flex justify-between font-bold text-teal-400 pt-1 border-t border-slate-800 text-sm"><span>Brutto Total:</span><span id="r-brutto" class="font-mono"></span></div>
+        </div>
+      </div>
+      <div class="flex gap-2 pt-2">
+        <button onclick="closeModal('modal-rapport')" class="flex-1 py-2.5 bg-slate-800 text-slate-300 font-bold text-xs rounded-xl">Abbrechen</button>
+        <button onclick="saveReport()" class="flex-1 py-2.5 bg-teal-500 text-slate-950 font-bold text-xs rounded-xl">⚡ Speichern & Rechnung erstellen</button>
+      </div>
+    </div>
+  </div>
+
+  <style>.inp{width:100%;margin-top:.25rem;background:#020617;border:1px solid #1e293b;border-radius:.75rem;padding:.75rem;color:#f1f5f9;outline:none}.inp:focus{border-color:#14b8a6}</style>
+
+  <script>
+    const { store, esc, money, calcInvoice, C } = TP;
+    const $ = id => document.getElementById(id);
+    const DONE = 'Abgeschlossen & Verrechnet';
+    const CATEGORIES = [
+      { key: 'TFA', label: 'Tiermedizinische/r Praxisassistent/in (TFA)', rate: 75, role: 'Tiermed. Praxisassistenz' },
+      { key: 'Assistenz', label: 'Assistenztierarzt/-ärztin', rate: 120, role: 'Assistenztierarzt/-ärztin' },
+      { key: 'Tierarzt', label: 'Tierarzt/Tierärztin', rate: 150, role: 'Tierarzt/Tierärztin' },
+      { key: 'Leitung', label: 'Praxisleitung / Inhaber/in', rate: 180, role: 'Praxisleitung' }
+    ];
+    const SEED_TEAM = [
+      { name: 'Dr. Anna Keller', category: 'Leitung', rate: 180, phone: '+41 79 111 22 33', status: 'Bereit' },
+      { name: 'Dr. Marco Weber', category: 'Tierarzt', rate: 150, phone: '+41 79 222 33 44', status: 'Unterwegs' },
+      { name: 'Sandra Meier', category: 'TFA', rate: 75, phone: '+41 79 333 44 55', status: 'Bereit' }
+    ];
+    const SEED_CUSTOMERS = [
+      { name: 'Markus Weber', email: 'markus.weber@gmail.com', phone: '+41 79 987 65 43', address: 'Bahnhofstr. 12, 8001 Zürich', animals: 'Bello (Hund, Labrador)', notes: 'Stammkunde seit 2023' },
+      { name: 'Stefan Fischer', email: 'stefan.fischer@bluewin.ch', phone: '+41 78 555 44 33', address: 'Hauptstr. 88, 5400 Baden', animals: 'Minka (Katze); Felix (Katze)', notes: 'Wohnungskatzen, Transportbox nötig' }
+    ];
+
+    let tab = 'cases', tickets = [], customers = [], team = [];
+
+    // ---- Login ----
+    function checkPw() {
+      if ($('pw').value === C.PASSWORDS.praxis) unlock();
+      else $('pw-err').classList.remove('hidden');
+    }
+    async function unlock() {
+      $('auth-overlay').classList.add('hidden');
+      $('app').classList.remove('hidden');
+      $('app').classList.add('flex');
+      sessionStorage.setItem('tp_praxis_auth', 'true');
+      $('mode').innerText = store.live ? '🟢 Live (Supabase)' : '🟡 Demo-Modus (nur dieses Gerät)';
+      $('mode').className = 'text-[10px] px-2 py-0.5 rounded-full border ' + (store.live
+        ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'bg-orange-500/10 text-orange-400 border-orange-500/20');
+      try {
+        if (!(await store.list('team')).length) for (const m of SEED_TEAM) await store.insert('team', { ...m, role: roleOf(m.category) });
+        if (!(await store.list('customers')).length) for (const c of SEED_CUSTOMERS) await store.insert('customers', c);
+      } catch (e) { alert('Datenbank-Fehler: ' + e.message); }
+      await load();
+      ['tickets', 'team', 'customers'].forEach(t => store.subscribe(t, load));
+    }
+    window.addEventListener('DOMContentLoaded', () => { if (sessionStorage.getItem('tp_praxis_auth') === 'true') unlock(); });
+
+    async function load() {
+      try { [tickets, customers, team] = await Promise.all([store.list('tickets'), store.list('customers'), store.list('team')]); } catch (e) {}
+      render();
+    }
+
+    const roleOf = key => (CATEGORIES.find(c => c.key === key) || CATEGORIES[2]).role;
+    const openModal = id => { $(id).classList.remove('hidden'); $(id).classList.add('flex'); };
+    const closeModal = id => { $(id).classList.add('hidden'); $(id).classList.remove('flex'); };
+    const safe = async fn => { try { await fn(); } catch (e) { alert('Fehler: ' + e.message); } };
+
+    // ---- Tierhalter ----
+    function addCustomer() {
+      const name = $('c-name').value.trim();
+      if (!name) return alert('Bitte Namen eingeben!');
+      safe(async () => {
+        await store.insert('customers', {
+          name, email: $('c-email').value.trim(), phone: $('c-phone').value.trim(), address: $('c-address').value.trim(),
+          animals: $('c-animals').value.trim(), notes: $('c-notes').value.trim()
+        });
+        ['c-name', 'c-email', 'c-phone', 'c-address', 'c-animals', 'c-notes'].forEach(i => $(i).value = '');
+        closeModal('modal-customer');
+        await load();
+      });
+    }
+    function deleteCustomer(id) {
+      if (confirm('Tierhalter wirklich löschen?')) safe(async () => { await store.remove('customers', id); await load(); });
+    }
+
+    // ---- Team ----
+    function fillCategories() {
+      $('t-cat').innerHTML = CATEGORIES.map(c => `<option value="${c.key}">${esc(c.label)} (${c.rate}.00 CHF/h)</option>`).join('');
+    }
+    function syncRate() { $('t-rate').value = CATEGORIES.find(c => c.key === $('t-cat').value).rate; }
+    function openTeam(id) {
+      fillCategories();
+      const m = team.find(t => t.id === id);
+      $('team-title').innerText = m ? '✏️ Teammitglied bearbeiten' : '🩺 Teammitglied anlegen';
+      $('t-id').value = m ? m.id : '';
+      $('t-name').value = m ? m.name : '';
+      $('t-cat').value = m ? m.category : 'Tierarzt';
+      $('t-rate').value = m ? m.rate : 150;
+      $('t-phone').value = m ? m.phone : '';
+      openModal('modal-team');
+    }
+    function saveTeam() {
+      const name = $('t-name').value.trim();
+      if (!name) return alert('Bitte Namen eingeben!');
+      const id = $('t-id').value;
+      const data = { name, category: $('t-cat').value, role: roleOf($('t-cat').value), rate: parseFloat($('t-rate').value) || 0, phone: $('t-phone').value.trim() };
+      safe(async () => {
+        if (id) await store.update('team', parseInt(id), data);
+        else await store.insert('team', { ...data, status: 'Bereit' });
+        closeModal('modal-team');
+        await load();
+      });
+    }
+    function deleteTeam(id) {
+      if (confirm('Teammitglied wirklich löschen?')) safe(async () => { await store.remove('team', id); await load(); });
+    }
+    function setTeamStatus(id, status) { safe(async () => { await store.update('team', id, { status }); await load(); }); }
+
+    // ---- Fälle ----
+    function assignVet(id, name) {
+      const vet = name || null;
+      safe(async () => { await store.update('tickets', id, { vet, status: vet ? 'In Bearbeitung' : 'Neu' }); await load(); });
+    }
+
+    function openReport(id) {
+      const t = tickets.find(x => x.id === id);
+      if (!t) return;
+      const m = team.find(x => x.name === t.vet);
+      $('r-id').value = id;
+      $('r-vet').innerText = m ? `${m.name} (${m.category})` : 'Nicht zugewiesen';
+      $('r-rate').value = m ? m.rate : 150;
+      ['r-diagnosis', 'r-treatment', 'r-material'].forEach(i => $(i).value = '');
+      $('r-hours').value = 0.5; $('r-mat').value = 0; $('r-fee').value = 0;
+      $('r-vat-label').innerText = `MwSt. (${(C.VAT_RATE * 100).toFixed(1)} %):`;
+      calcModal();
+      openModal('modal-rapport');
+    }
+    function modalInv() {
+      return calcInvoice({
+        hours: parseFloat($('r-hours').value) || 0, rate: parseFloat($('r-rate').value) || 0,
+        mat: parseFloat($('r-mat').value) || 0, fee: parseFloat($('r-fee').value) || 0
+      });
+    }
+    function calcModal() {
+      const i = modalInv();
+      $('r-netto').innerText = money(i.netto) + ' CHF';
+      $('r-vat').innerText = money(i.vat) + ' CHF';
+      $('r-brutto').innerText = money(i.brutto) + ' CHF';
+    }
+    function saveReport() {
+      const id = parseInt($('r-id').value);
+      const t = tickets.find(x => x.id === id);
+      const i = modalInv();
+      const report = {
+        vet: t && t.vet ? t.vet : 'Nicht zugewiesen',
+        hours: parseFloat($('r-hours').value) || 0, rate: parseFloat($('r-rate').value) || 0,
+        diagnosis: $('r-diagnosis').value.trim() || '-', treatment: $('r-treatment').value.trim() || '-',
+        materialDesc: $('r-material').value.trim() || 'Keines',
+        labor: money(i.labor), mat: money(i.mat), fee: money(i.fee),
+        netto: money(i.netto), vat: money(i.vat), brutto: money(i.brutto),
+        date: new Date().toLocaleDateString('de-CH')
+      };
+      safe(async () => {
+        await store.update('tickets', id, { status: DONE, report });
+        closeModal('modal-rapport');
+        await load();
+        switchTab('invoices');
+      });
+    }
+
+    // ---- PDF ----
+    const invNo = t => `RE-${new Date(t.created_at || Date.now()).getFullYear()}-${String(t.id).padStart(4, '0')}`;
+    function downloadPDF(id) {
+      const t = tickets.find(x => x.id === id);
+      if (!t || !t.report) return;
+      const r = t.report, P = C.PRACTICE;
+      const { jsPDF } = window.jspdf;
+      const doc = new jsPDF();
+      const row = (txt, amt, y, bold) => {
+        doc.setFont('helvetica', bold ? 'bold' : 'normal');
+        doc.text(txt, 20, y);
+        doc.text(`${amt} CHF`, 190, y, { align: 'right' });
+      };
+
+      doc.setFont('helvetica', 'bold'); doc.setFontSize(22); doc.setTextColor(13, 148, 136);
+      doc.text(P.name, 20, 20);
+      doc.setFontSize(10); doc.setFont('helvetica', 'normal'); doc.setTextColor(100);
+      doc.text(`${P.address} | ${P.uid} | Tel. ${P.phone}`, 20, 26);
+
+      doc.setFontSize(16); doc.setFont('helvetica', 'bold'); doc.setTextColor(0);
+      doc.text(`RECHNUNG ${invNo(t)}`, 20, 42);
+      doc.setFontSize(10); doc.setFont('helvetica', 'normal');
+      doc.text(`Datum: ${r.date}`, 190, 42, { align: 'right' });
+      doc.text('Status: Offen', 190, 48, { align: 'right' });
+
+      doc.setDrawColor(200); doc.setFillColor(245, 247, 250);
+      doc.roundedRect(20, 55, 170, 34, 3, 3, 'FD');
+      doc.setFont('helvetica', 'bold'); doc.text('Tierhalter:', 25, 63);
+      doc.setFont('helvetica', 'normal');
+      doc.text(`${t.customer_name}${t.address ? ', ' + t.address : ''}`, 25, 70);
+      doc.setFont('helvetica', 'bold'); doc.text('Patient:', 25, 79);
+      doc.setFont('helvetica', 'normal');
+      doc.text(`${t.patient_name} (${t.species}) | Diagnose: ${r.diagnosis}`, 25, 86);
+
+      doc.setFont('helvetica', 'bold'); doc.text('Position / Beschreibung', 20, 102);
+      doc.text('Betrag (exkl. MwSt.)', 190, 102, { align: 'right' });
+      doc.line(20, 105, 190, 105);
+
+      let y = 115;
+      row(`Behandlung (${r.vet}): ${r.hours} Std. a ${r.rate} CHF/h`, r.labor, y); y += 10;
+      row(`Medikamente/Material: ${r.materialDesc}`.slice(0, 78), r.mat, y); y += 10;
+      if (parseFloat(r.fee) > 0) { row('Notfalltaxe', r.fee, y); y += 10; }
+      doc.line(20, y - 4, 190, y - 4); y += 4;
+      row('Zwischentotal (Netto exkl. MwSt.)', r.netto, y); y += 8;
+      row(`MwSt. ${(C.VAT_RATE * 100).toFixed(1)} %`, r.vat, y); y += 4;
+      doc.line(100, y, 190, y); y += 8;
+      doc.setFontSize(12); row(`Gesamttotal (inkl. ${(C.VAT_RATE * 100).toFixed(1)} % MwSt.)`, r.brutto, y, true);
+
+      doc.setFontSize(9); doc.setFont('helvetica', 'italic'); doc.setTextColor(120);
+      doc.text(`Behandlung: ${r.treatment}`.slice(0, 100), 20, y + 16);
+      doc.text(`Vielen Dank für Ihr Vertrauen! Zahlbar innert ${C.PAYMENT_DAYS} Tagen ohne Abzug.`, 20, y + 24);
+      doc.save(`Rechnung_${invNo(t)}.pdf`);
+    }
+
+    // ---- Rendering ----
+    function switchTab(t) { tab = t; render(); }
+
+    const TABS = [['cases', '📋 Fälle & Behandlungen'], ['customers', '👥 Tierhalter'], ['team', '🩺 Team-Dispo'], ['invoices', '🧾 Buchhaltung']];
+    const URG = { Notfall: 'bg-red-500/20 text-red-400 border-red-500/30', Dringend: 'bg-orange-500/20 text-orange-400 border-orange-500/30', Normal: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' };
+
+    function render() {
+      $('nav').innerHTML = TABS.map(([k, l]) => `<button onclick="switchTab('${k}')" class="px-3.5 py-1.5 text-xs font-bold rounded-lg whitespace-nowrap ${k === tab ? 'bg-teal-500 text-slate-950' : 'text-slate-400 hover:text-slate-100'}">${l}</button>`).join('');
+      $('content').innerHTML = { cases: viewCases, customers: viewCustomers, team: viewTeam, invoices: viewInvoices }[tab]();
+    }
+
+    const head = (title, sub, btn) => `
+      <div class="flex justify-between items-center gap-3">
+        <div><h2 class="text-base font-bold text-slate-200 uppercase tracking-wider">${title}</h2>${sub ? `<p class="text-xs text-slate-400">${sub}</p>` : ''}</div>${btn || ''}
+      </div>`;
+
+    function viewCases() {
+      const open = tickets.filter(t => t.status !== DONE).length;
+      return `<div class="space-y-6">
+        ${head('Patienten-Anfragen & Fälle', `${open} offen`, '<span class="text-xs bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-3 py-1 rounded-full">🟢 Echtzeit</span>')}
+        <div class="space-y-3">
+          ${tickets.length === 0 ? '<div class="p-6 bg-slate-900 rounded-2xl border border-slate-800 text-slate-400 text-sm">Noch keine Anfragen vorhanden.</div>' : ''}
+          ${tickets.map(t => `
+          <div class="bg-slate-900 border border-slate-800 p-5 rounded-2xl flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-l-4 ${t.status === DONE ? 'border-l-sky-500' : (t.urgency === 'Notfall' ? 'border-l-red-500' : 'border-l-teal-500')}">
+            <div class="space-y-1">
+              <div class="flex flex-wrap items-center gap-3">
+                <span class="font-mono text-xs font-bold text-teal-400 bg-teal-500/10 px-2.5 py-1 rounded border border-teal-500/20">#${esc(t.id)}</span>
+                <span class="font-bold text-base text-slate-100">🐾 ${esc(t.patient_name)} <span class="text-xs text-slate-400 font-normal">(${esc(t.species)})</span></span>
+                <span class="text-[10px] px-2 py-0.5 rounded-full font-bold border ${URG[t.urgency] || URG.Normal}">${esc(t.urgency)}</span>
+              </div>
+              <p class="text-sm text-slate-200 font-medium">🩹 ${esc(t.complaint)}</p>
+              <p class="text-xs text-slate-400">👤 ${esc(t.customer_name)} | 📞 ${esc(t.phone)} | ✉️ ${esc(t.email)}</p>
+              <p class="text-xs text-slate-400">📍 <span class="text-slate-200">${esc(t.address)}</span></p>
+            </div>
+            <div class="flex flex-wrap items-center gap-3 w-full md:w-auto justify-between border-t md:border-t-0 pt-3 md:pt-0 border-slate-800">
+              <select onchange="assignVet(${Number(t.id)}, this.value)" ${t.status === DONE ? 'disabled' : ''} class="bg-slate-950 text-teal-400 font-bold text-xs px-3 py-2 rounded-xl border border-slate-800">
+                <option value="">⚠️ Person wählen...</option>
+                ${team.map(m => `<option value="${esc(m.name)}" ${t.vet === m.name ? 'selected' : ''}>🩺 ${esc(m.name)} (${esc(m.category)})</option>`).join('')}
+              </select>
+              ${t.status !== DONE
+                ? `<button onclick="openReport(${Number(t.id)})" class="bg-teal-500 hover:bg-teal-400 text-slate-950 font-bold text-xs px-3 py-2 rounded-xl">📝 Behandlung erfassen</button>`
+                : '<span class="text-xs px-3 py-1.5 rounded-full font-bold bg-sky-500/20 text-sky-400 border border-sky-500/30">✓ Abgeschlossen & Verrechnet</span>'}
+            </div>
+          </div>`).join('')}
+        </div></div>`;
+    }
+
+    function viewCustomers() {
+      return `<div class="space-y-6">
+        ${head('Tierhalter & Patientenkartei', 'Kontaktdaten und Tiere', '<button onclick="openModal(\'modal-customer\')" class="bg-teal-500 text-slate-950 font-bold text-xs px-4 py-2 rounded-xl hover:bg-teal-400">+ Tierhalter</button>')}
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          ${customers.map(c => `
+          <div class="bg-slate-900 border border-slate-800 p-5 rounded-2xl space-y-2">
+            <div class="flex justify-between items-start">
+              <h3 class="font-bold text-teal-400 text-base">${esc(c.name)}</h3>
+              <button onclick="deleteCustomer(${Number(c.id)})" class="p-1.5 bg-slate-800 hover:bg-red-500/20 text-red-400 rounded-lg text-xs">🗑️</button>
+            </div>
+            <p class="text-xs text-slate-300">✉️ ${esc(c.email) || '-'}</p>
+            <p class="text-xs text-slate-400 font-mono">📞 ${esc(c.phone) || '-'}</p>
+            <p class="text-xs text-slate-400">📍 ${esc(c.address) || '-'}</p>
+            <p class="text-xs text-slate-200 bg-teal-500/5 p-2.5 rounded-xl border border-teal-500/20">🐾 ${esc(c.animals) || 'Keine Tiere erfasst'}</p>
+            ${c.notes ? `<p class="text-xs text-slate-500 bg-slate-950 p-2.5 rounded-xl border border-slate-800">📝 ${esc(c.notes)}</p>` : ''}
+          </div>`).join('')}
+        </div></div>`;
+    }
+
+    function viewTeam() {
+      return `<div class="space-y-6">
+        ${head('Team-Verwaltung & Stundensätze', 'Funktion und Stundensatz (exkl. MwSt.)', '<button onclick="openTeam()" class="bg-teal-500 text-slate-950 font-bold text-xs px-4 py-2 rounded-xl hover:bg-teal-400">+ Teammitglied</button>')}
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          ${team.map(m => `
+          <div class="bg-slate-900 border border-slate-800 p-5 rounded-2xl space-y-4">
+            <div class="flex justify-between items-start">
+              <div>
+                <h3 class="font-bold text-slate-100 text-base">${esc(m.name)}</h3>
+                <p class="text-xs text-slate-400">${esc(m.role)}</p>
+                <p class="text-xs text-teal-400 font-mono mt-1">💰 <b>${esc(m.rate)} CHF/h</b> <span class="text-[10px] text-slate-500">(exkl. MwSt.)</span></p>
+                <p class="text-xs text-slate-500 font-mono">📞 ${esc(m.phone) || '-'}</p>
+              </div>
+              <div class="flex gap-1">
+                <button onclick="openTeam(${Number(m.id)})" class="p-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-xs">✏️</button>
+                <button onclick="deleteTeam(${Number(m.id)})" class="p-2 bg-slate-800 hover:bg-red-500/20 text-red-400 rounded-lg text-xs">🗑️</button>
+              </div>
+            </div>
+            <div class="pt-2 border-t border-slate-800 space-y-1">
+              <label class="text-[10px] text-slate-400 uppercase font-bold">Status:</label>
+              <select onchange="setTeamStatus(${Number(m.id)}, this.value)" class="w-full bg-slate-950 text-slate-200 text-xs px-3 py-2 rounded-xl border border-slate-800">
+                ${[['Bereit', '🟢 Bereit / Frei'], ['Unterwegs', '🚗 Unterwegs (Hausbesuch)'], ['Im Einsatz', '🩺 In Behandlung / OP'], ['Feierabend', '🔴 Nicht im Dienst']].map(([v, l]) => `<option value="${v}" ${m.status === v ? 'selected' : ''}>${l}</option>`).join('')}
+              </select>
+            </div>
+          </div>`).join('')}
+        </div></div>`;
+    }
+
+    function viewInvoices() {
+      const done = tickets.filter(t => t.status === DONE && t.report);
+      const sum = done.reduce((s, t) => s + parseFloat(t.report.brutto || 0), 0);
+      return `<div class="space-y-6">
+        ${head(`Buchhaltung (MwSt. ${(C.VAT_RATE * 100).toFixed(1)} %)`, `${done.length} Rechnungen | Total brutto: <b class="text-emerald-400">${money(sum)} CHF</b>`)}
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl overflow-x-auto">
+          <table class="w-full text-left text-xs text-slate-300">
+            <thead class="bg-slate-950 text-slate-400 uppercase font-semibold border-b border-slate-800"><tr>
+              <th class="p-4">Rechnungs-Nr.</th><th class="p-4">Tierhalter & Patient</th><th class="p-4">Behandlung</th>
+              <th class="p-4">Material/Taxe</th><th class="p-4">Netto</th><th class="p-4">MwSt.</th><th class="p-4">Brutto</th><th class="p-4">Aktion</th>
+            </tr></thead>
+            <tbody class="divide-y divide-slate-800">
+              ${done.length === 0 ? '<tr><td colspan="8" class="p-6 text-center text-slate-500 italic">Noch keine abgeschlossenen Behandlungen.</td></tr>' : ''}
+              ${done.map(t => { const r = t.report; return `
+              <tr>
+                <td class="p-4 font-mono font-bold text-teal-400">${esc(invNo(t))}</td>
+                <td class="p-4 font-medium text-slate-100">${esc(t.customer_name)}<br><span class="text-[10px] text-slate-500">🐾 ${esc(t.patient_name)} (${esc(t.species)})</span></td>
+                <td class="p-4">🩺 ${esc(r.vet)}<br><span class="text-[10px] text-teal-400 font-mono">${esc(r.hours)} Std. = ${esc(r.labor)} CHF</span><br><span class="text-[10px] text-slate-500">${esc(r.diagnosis)}</span></td>
+                <td class="p-4 text-slate-400">${esc(r.materialDesc)}<br><span class="text-[10px] text-slate-300 font-mono">${esc(r.mat)} + ${esc(r.fee)} CHF</span></td>
+                <td class="p-4 font-mono">${esc(r.netto)} CHF</td>
+                <td class="p-4 font-mono text-teal-400/80">${esc(r.vat)} CHF</td>
+                <td class="p-4 font-mono font-bold text-emerald-400 text-sm">${esc(r.brutto)} CHF</td>
+                <td class="p-4"><button onclick="downloadPDF(${Number(t.id)})" class="bg-teal-500 hover:bg-teal-400 text-slate-950 font-bold px-3 py-1.5 rounded-lg whitespace-nowrap">📄 PDF</button></td>
+              </tr>`; }).join('')}
+            </tbody>
+          </table>
+        </div></div>`;
+    }
+  </script>
+</body>
+</html>

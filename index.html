@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>VetFlow – Tierpraxis Suite</title>
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-950 text-slate-100 font-sans antialiased min-h-screen flex items-center justify-center p-4">
+
+  <div class="max-w-md w-full bg-slate-900 border border-slate-800 rounded-3xl p-6 space-y-6 text-center shadow-2xl">
+    <div>
+      <div class="text-4xl mb-2">🐾</div>
+      <h1 class="text-2xl font-bold text-teal-400">VetFlow Suite</h1>
+      <p class="text-xs text-slate-400 mt-1">Wähle das Modul aus, das du öffnen möchtest:</p>
+    </div>
+
+    <button id="pwa-install-btn" onclick="installPWA()" class="hidden w-full py-3.5 bg-teal-500 hover:bg-teal-400 text-slate-950 font-bold text-sm rounded-2xl transition-all shadow-lg shadow-teal-500/10">
+      📲 App auf Home-Bildschirm installieren
+    </button>
+
+    <div class="space-y-3">
+      <a href="kunden_app.html" class="block w-full py-3.5 bg-slate-800 hover:bg-slate-700 text-slate-100 font-bold text-sm rounded-2xl border border-slate-700 transition-all">
+        🚨 Tierhalter-Portal / Notfall melden
+      </a>
+      <a href="tierarzt_app.html" class="block w-full py-3.5 bg-slate-800 hover:bg-slate-700 text-slate-100 font-bold text-sm rounded-2xl border border-slate-700 transition-all">
+        🩺 Tierarzt-App (Team)
+      </a>
+      <a href="praxis_dashboard.html" class="block w-full py-3.5 bg-teal-500 hover:bg-teal-400 text-slate-950 font-bold text-sm rounded-2xl transition-all shadow-lg shadow-teal-500/10">
+        💻 Praxis-Zentrale
+      </a>
+    </div>
+  </div>
+
+  <script>
+    let deferredPrompt;
+    window.addEventListener('beforeinstallprompt', e => {
+      e.preventDefault();
+      deferredPrompt = e;
+      document.getElementById('pwa-install-btn').classList.remove('hidden');
+    });
+    function installPWA() {
+      if (!deferredPrompt) return;
+      deferredPrompt.prompt();
+      deferredPrompt.userChoice.then(r => {
+        if (r.outcome === 'accepted') document.getElementById('pwa-install-btn').classList.add('hidden');
+        deferredPrompt = null;
+      });
+    }
+    if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
+  </script>
+</body>
+</html>

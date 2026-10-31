@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>VetFlow – Tierhalter-Portal</title>
+  <link rel="manifest" href="manifest_kunde.json">
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <meta name="theme-color" content="#020617">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="config.js"></script>
+  <script src="store.js"></script>
+</head>
+<body class="bg-slate-950 text-slate-100 font-sans antialiased">
+
+  <div class="flex flex-col min-h-screen max-w-md mx-auto bg-slate-950 border-x border-slate-800 shadow-2xl">
+
+    <header class="p-4 bg-slate-900 border-b border-slate-800 flex items-center justify-between sticky top-0 z-50">
+      <div class="flex items-center gap-2">
+        <div class="w-3 h-3 rounded-full bg-emerald-500 animate-pulse"></div>
+        <h1 class="font-bold text-lg text-teal-400 tracking-wide">🐾 VetFlow Tierhalter</h1>
+      </div>
+      <span class="text-[10px] bg-slate-800 text-slate-300 px-2.5 py-1 rounded-full border border-slate-700 font-medium">Notfall-Sprechstunde</span>
+    </header>
+
+    <main class="flex-1 overflow-y-auto p-4 space-y-4">
+
+      <div class="bg-red-500/10 border border-red-500/30 p-3 rounded-2xl text-xs text-red-300">
+        Bei lebensbedrohlichen Notfällen bitte <b>zusätzlich telefonisch</b> anrufen:
+        <a id="practice-phone" class="font-mono font-bold underline"></a>
+      </div>
+
+      <div id="profile-card" class="hidden bg-slate-900/90 border border-teal-500/30 p-4 rounded-2xl space-y-2">
+        <div class="flex justify-between items-center border-b border-slate-800 pb-2">
+          <span class="text-xs font-bold text-teal-400 uppercase tracking-wider">👤 Mein Profil</span>
+          <span class="text-[10px] text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">Daten gespeichert</span>
+        </div>
+        <div class="text-xs space-y-1 text-slate-300">
+          <p class="font-bold text-slate-100 text-sm" id="profile-name"></p>
+          <p id="profile-email" class="text-teal-400 font-mono"></p>
+          <p id="profile-phone" class="text-slate-400 font-mono"></p>
+          <p id="profile-address" class="text-slate-400"></p>
+        </div>
+      </div>
+
+      <div class="bg-slate-900 p-5 rounded-2xl border border-slate-800 space-y-3.5 text-xs">
+        <h2 class="font-bold text-teal-400 text-sm">🚨 Patient anmelden</h2>
+
+        <div>
+          <label class="text-slate-400 font-medium">Vor- & Nachname *</label>
+          <input type="text" id="cust-name" placeholder="z. B. Hans Meier" class="w-full mt-1 bg-slate-950 border border-slate-800 rounded-xl p-3 text-slate-100 focus:outline-none focus:border-teal-500" />
+        </div>
+        <div>
+          <label class="text-slate-400 font-medium">E-Mail (für Bestätigung & Rechnung) *</label>
+          <input type="email" id="cust-email" placeholder="z. B. hans.meier@gmail.com" class="w-full mt-1 bg-slate-950 border border-slate-800 rounded-xl p-3 text-slate-100 focus:outline-none focus:border-teal-500" />
+        </div>
+        <div>
+          <label class="text-slate-400 font-medium">Telefonnummer *</label>
+          <input type="tel" id="cust-phone" placeholder="z. B. +41 79 123 45 67" class="w-full mt-1 bg-slate-950 border border-slate-800 rounded-xl p-3 text-slate-100 focus:outline-none focus:border-teal-500" />
+        </div>
+        <div>
+          <label class="text-slate-400 font-medium">Strasse & Ort (für Hausbesuche) *</label>
+          <input type="text" id="cust-address" placeholder="z. B. Bahnhofstrasse 12, 8001 Zürich" class="w-full mt-1 bg-slate-950 border border-slate-800 rounded-xl p-3 text-slate-100 focus:outline-none focus:border-teal-500" />
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="text-slate-400 font-medium">Name des Tieres *</label>
+            <input type="text" id="pet-name" placeholder="z. B. Bello" class="w-full mt-1 bg-slate-950 border border-slate-800 rounded-xl p-3 text-slate-100 focus:outline-none focus:border-teal-500" />
+          </div>
+          <div>
+            <label class="text-slate-400 font-medium">Tierart *</label>
+            <select id="pet-species" class="w-full mt-1 bg-slate-950 border border-slate-800 rounded-xl p-3 text-slate-100 focus:outline-none focus:border-teal-500">
+              <option>Hund</option><option>Katze</option><option>Kaninchen / Nager</option>
+              <option>Vogel</option><option>Pferd</option><option>Reptil</option><option>Anderes</option>
+            </select>
+          </div>
+        </div>
+
+        <div>
+          <label class="text-slate-400 font-medium">Dringlichkeit *</label>
+          <select id="urgency" class="w-full mt-1 bg-slate-950 border border-slate-800 rounded-xl p-3 text-slate-100 focus:outline-none focus:border-teal-500">
+            <option value="Notfall">🔴 Notfall – lebensbedrohlich / sofort</option>
+            <option value="Dringend" selected>🟠 Dringend – heute noch</option>
+            <option value="Normal">🟢 Normal – nächster freier Termin</option>
+          </select>
+        </div>
+
+        <div>
+          <label class="text-slate-400 font-medium">Beschwerden / Symptome *</label>
+          <textarea id="complaint" rows="3" placeholder="z. B. Hund hat Schokolade gefressen, erbricht seit 1 Stunde..." class="w-full mt-1 bg-slate-950 border border-slate-800 rounded-xl p-3 text-slate-100 focus:outline-none focus:border-teal-500"></textarea>
+        </div>
+
+        <button onclick="sendRequest()" class="w-full py-3.5 bg-teal-500 hover:bg-teal-400 text-slate-950 font-bold text-sm rounded-xl active:scale-95 transition-all shadow-lg shadow-teal-500/10">
+          🚨 Anfrage übermitteln
+        </button>
+      </div>
+
+      <div class="space-y-3">
+        <h3 class="text-xs font-bold text-slate-400 uppercase tracking-wider px-1">Meine Anfragen</h3>
+        <div id="my-list" class="space-y-2">
+          <p class="text-xs text-slate-500 italic px-1">Noch keine Anfragen übermittelt.</p>
+        </div>
+      </div>
+
+    </main>
+  </div>
+
+  <script>
+    const { store, esc, C } = TP;
+    const $ = id => document.getElementById(id);
+    const FIELDS = { name: 'cust-name', email: 'cust-email', phone: 'cust-phone', address: 'cust-address' };
+
+    function myIds() {
+      try { return JSON.parse(localStorage.getItem('tp_my_ticket_ids')) || []; } catch (e) { return []; }
+    }
+
+    function showProfile(p) {
+      $('profile-name').innerText = p.name;
+      $('profile-email').innerText = p.email ? '✉️ ' + p.email : '';
+      $('profile-phone').innerText = p.phone ? '📞 ' + p.phone : '';
+      $('profile-address').innerText = p.address ? '📍 ' + p.address : '';
+      $('profile-card').classList.remove('hidden');
+    }
+
+    async function sendRequest() {
+      const p = {};
+      for (const k in FIELDS) p[k] = $(FIELDS[k]).value.trim();
+      const pet = $('pet-name').value.trim();
+      const complaint = $('complaint').value.trim();
+
+      if (!p.name || !p.email || !p.phone || !p.address || !pet || !complaint) {
+        alert('Bitte füllen Sie alle Pflichtfelder aus (Kontaktdaten, Tiername und Beschwerden).');
+        return;
+      }
+
+      for (const k in p) localStorage.setItem('tp_cust_' + k, p[k]);
+      showProfile(p);
+
+      try {
+        const t = await store.insert('tickets', {
+          customer_name: p.name, email: p.email, phone: p.phone, address: p.address,
+          patient_name: pet, species: $('pet-species').value, complaint,
+          urgency: $('urgency').value, status: 'Neu'
+        });
+        localStorage.setItem('tp_my_ticket_ids', JSON.stringify([t.id, ...myIds()]));
+        $('complaint').value = '';
+        alert('Vielen Dank! Ihre Anfrage wurde an die Praxis übermittelt.');
+        renderMine();
+      } catch (e) {
+        alert('Fehler beim Senden: ' + e.message);
+      }
+    }
+
+    const URG = { Notfall: 'bg-red-500/20 text-red-400 border-red-500/30', Dringend: 'bg-orange-500/20 text-orange-400 border-orange-500/30', Normal: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' };
+
+    async function renderMine() {
+      const ids = myIds();
+      if (!ids.length) return;
+      let rows = [];
+      try { rows = await store.list('tickets', { ids }); } catch (e) { return; }
+      $('my-list').innerHTML = rows.map(t => `
+        <div class="bg-slate-900 border border-slate-800 p-4 rounded-xl space-y-1">
+          <div class="flex justify-between items-center">
+            <span class="font-mono text-xs font-bold text-teal-400">#${esc(t.id)}</span>
+            <span class="text-[10px] px-2 py-0.5 rounded-full font-bold border ${URG[t.urgency] || URG.Normal}">${esc(t.urgency)}</span>
+          </div>
+          <p class="text-xs font-medium text-slate-100">🐾 ${esc(t.patient_name)} (${esc(t.species)}): ${esc(t.complaint)}</p>
+          <p class="text-[10px] text-slate-400">Status: <b class="text-teal-400">${esc(t.status)}</b>${t.vet ? ' | ' + esc(t.vet) : ''}</p>
+        </div>`).join('');
+    }
+
+    window.addEventListener('DOMContentLoaded', () => {
+      $('practice-phone').innerText = C.PRACTICE.phone;
+      $('practice-phone').href = 'tel:' + C.PRACTICE.phone.replace(/\s/g, '');
+      const saved = {};
+      for (const k in FIELDS) {
+        saved[k] = localStorage.getItem('tp_cust_' + k) || '';
+        $(FIELDS[k]).value = saved[k];
+      }
+      if (saved.name && saved.address) showProfile(saved);
+      renderMine();
+      store.subscribe('tickets', renderMine);
+    });
+  </script>
+</body>
+</html>
