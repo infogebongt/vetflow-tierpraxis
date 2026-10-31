@@ -64,6 +64,30 @@
       emit(table);
     },
 
+    // Tierhalter-Portal: nur über Funktionen, kein Tabellenzugriff. token = geheimer Schlüssel pro Anfrage.
+    async submitTicket(t) {
+      if (live) {
+        const { data, error } = await sb.rpc('submit_ticket', {
+          p_customer_name: t.customer_name, p_email: t.email, p_phone: t.phone, p_address: t.address,
+          p_patient_name: t.patient_name, p_species: t.species, p_complaint: t.complaint, p_urgency: t.urgency
+        });
+        if (error) throw new Error(error.message);
+        return { id: data[0].ticket_id, token: data[0].token };
+      }
+      const row = await store.insert('tickets', Object.assign({ status: 'Neu' }, t));
+      return { id: row.id, token: String(row.id) };
+    },
+
+    async myTickets(tokens) {
+      if (!tokens.length) return [];
+      if (live) {
+        const { data, error } = await sb.rpc('my_tickets', { p_tokens: tokens });
+        if (error) throw new Error(error.message);
+        return data || [];
+      }
+      return store.list('tickets', { ids: tokens.map(Number) });
+    },
+
     subscribe(table, cb) {
       (listeners[table] = listeners[table] || []).push(cb);
       if (live) {
@@ -84,7 +108,44 @@
     return { labor, mat, fee, netto, vat, brutto: netto + vat };
   }
 
-  window.TP = { store, esc, money, calcInvoice, C };
+  // Anmeldung: live = Supabase Auth (E-Mail + Passwort, Rolle aus Tabelle staff); Demo = Passwort aus config.js
+  const auth = {
+    live,
+    async role() {
+      if (!live) return sessionStorage.getItem('tp_demo_role');
+      const { data } = await sb.auth.getSession();
+      if (!data.session) return null;
+      const r = await sb.rpc('my_role');
+      return r.error ? null : r.data;
+    },
+    async login(email, pw, allowed) {
+      if (!live) {
+        const role = pw === C.PASSWORDS.praxis ? 'praxis' : (pw === C.PASSWORDS.team ? 'team' : null);
+        if (!role || !allowed.includes(role)) return { ok: false, error: 'Falsches Passwort!' };
+        sessionStorage.setItem('tp_demo_role', role);
+        return { ok: true, role };
+      }
+      const { error } = await sb.auth.signInWithPassword({ email: (email || '').trim(), password: pw });
+      if (error) return { ok: false, error: 'E-Mail oder Passwort falsch.' };
+      const role = await auth.role();
+      if (!role || !allowed.includes(role)) {
+        await sb.auth.signOut();
+        return { ok: false, error: 'Dieses Konto hat keinen Zugriff auf diesen Bereich.' };
+      }
+      return { ok: true, role };
+    },
+    async resume(allowed) {
+      const role = await auth.role();
+      return !!role && allowed.includes(role);
+    },
+    async logout() {
+      sessionStorage.removeItem('tp_demo_role');
+      if (live) await sb.auth.signOut();
+      location.reload();
+    }
+  };
+
+  window.TP = { store, auth, esc, money, calcInvoice, C };
 
   if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
 })();

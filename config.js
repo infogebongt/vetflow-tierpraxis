@@ -5,7 +5,7 @@ window.TP_CONFIG = {
   SUPABASE_URL: "https://ecshmnbwifdkwsfnkaff.supabase.co",
   SUPABASE_KEY: "sb_publishable_o38JdPENoSInFPXpXffwWw_BpydzLbt",
 
-  // Achtung: Passwörter im Frontend sind nur ein Sichtschutz, kein echter Zugriffsschutz.
+  // Nur für den Demo-Modus ohne Supabase. Im Live-Betrieb melden sich Praxis/Team per E-Mail + Passwort (Supabase Auth) an.
   PASSWORDS: {
     praxis: "Praxis2026",
     team: "Tierarzt2026"

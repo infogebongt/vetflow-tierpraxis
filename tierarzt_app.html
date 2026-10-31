@@ -21,13 +21,14 @@
       <div class="w-12 h-12 rounded-2xl bg-teal-500/10 border border-teal-500/20 flex items-center justify-center mx-auto text-xl">🩺</div>
       <div>
         <h2 class="text-xl font-bold text-teal-400">Tierarzt-App</h2>
-        <p class="text-xs text-slate-400 mt-1">Bitte gib das Team-Passwort ein.</p>
+        <p class="text-xs text-slate-400 mt-1">Bitte melde dich an.</p>
       </div>
       <div class="space-y-3">
-        <input type="password" id="pw" placeholder="Passwort eingeben..." class="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-center text-slate-100 focus:outline-none focus:border-teal-500 text-sm font-mono tracking-widest" onkeypress="if(event.key==='Enter') checkPw()" />
+        <input type="email" id="email" placeholder="E-Mail" autocomplete="username" class="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-center text-slate-100 focus:outline-none focus:border-teal-500 text-sm" />
+        <input type="password" id="pw" placeholder="Passwort" autocomplete="current-password" class="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-center text-slate-100 focus:outline-none focus:border-teal-500 text-sm font-mono tracking-widest" onkeypress="if(event.key==='Enter') checkPw()" />
         <button onclick="checkPw()" class="w-full py-3 bg-teal-500 hover:bg-teal-400 text-slate-950 font-bold text-sm rounded-xl transition-all">Anmelden</button>
       </div>
-      <p id="pw-err" class="text-xs text-red-400 font-medium hidden">⚠️ Falsches Passwort!</p>
+      <p id="pw-err" class="text-xs text-red-400 font-medium hidden"></p>
     </div>
   </div>
 
@@ -37,7 +38,10 @@
         <div class="w-3 h-3 rounded-full bg-emerald-500 animate-pulse"></div>
         <h1 class="font-bold text-lg text-teal-400 tracking-wide">🩺 VetFlow Team</h1>
       </div>
-      <select id="me" onchange="selectMe()" class="bg-slate-950 text-slate-200 text-xs px-2.5 py-1.5 rounded-xl border border-slate-700 font-bold focus:outline-none focus:border-teal-500"></select>
+      <div class="flex items-center gap-2">
+        <select id="me" onchange="selectMe()" class="bg-slate-950 text-slate-200 text-xs px-2.5 py-1.5 rounded-xl border border-slate-700 font-bold focus:outline-none focus:border-teal-500"></select>
+        <button onclick="TP.auth.logout()" title="Abmelden" class="text-xs px-2 py-1.5 rounded-xl border border-slate-700 text-slate-400">⎋</button>
+      </div>
     </header>
 
     <main class="flex-1 p-4 space-y-4">
@@ -96,23 +100,24 @@
     const $ = id => document.getElementById(id);
     let team = [], tickets = [];
 
-    function checkPw() {
-      if ($('pw').value === C.PASSWORDS.team) unlock();
-      else $('pw-err').classList.remove('hidden');
+    async function checkPw() {
+      const r = await TP.auth.login($('email').value, $('pw').value, ['team', 'praxis']);
+      if (r.ok) unlock();
+      else { $('pw-err').innerText = '⚠️ ' + r.error; $('pw-err').classList.remove('hidden'); }
     }
 
     async function unlock() {
       $('auth-overlay').classList.add('hidden');
       $('app').classList.remove('hidden');
       $('app').classList.add('flex');
-      sessionStorage.setItem('tp_team_auth', 'true');
       await load();
       store.subscribe('tickets', load);
       store.subscribe('team', load);
     }
 
-    window.addEventListener('DOMContentLoaded', () => {
-      if (sessionStorage.getItem('tp_team_auth') === 'true') unlock();
+    window.addEventListener('DOMContentLoaded', async () => {
+      if (!TP.auth.live) $('email').classList.add('hidden');
+      if (await TP.auth.resume(['team', 'praxis'])) unlock();
     });
 
     async function load() {

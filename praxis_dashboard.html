@@ -22,13 +22,14 @@
       <div class="w-12 h-12 rounded-2xl bg-teal-500/10 border border-teal-500/20 flex items-center justify-center mx-auto text-xl">🔒</div>
       <div>
         <h2 class="text-xl font-bold text-teal-400">Praxis-Zentrale</h2>
-        <p class="text-xs text-slate-400 mt-1">Bitte gib das Praxis-Passwort ein.</p>
+        <p class="text-xs text-slate-400 mt-1">Bitte melde dich an.</p>
       </div>
       <div class="space-y-3">
-        <input type="password" id="pw" placeholder="Passwort eingeben..." class="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-center text-slate-100 focus:outline-none focus:border-teal-500 text-sm font-mono tracking-widest" onkeypress="if(event.key==='Enter') checkPw()" />
-        <button onclick="checkPw()" class="w-full py-3 bg-teal-500 hover:bg-teal-400 text-slate-950 font-bold text-sm rounded-xl transition-all">Entsperren</button>
+        <input type="email" id="email" placeholder="E-Mail" autocomplete="username" class="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-center text-slate-100 focus:outline-none focus:border-teal-500 text-sm" />
+        <input type="password" id="pw" placeholder="Passwort" autocomplete="current-password" class="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-center text-slate-100 focus:outline-none focus:border-teal-500 text-sm font-mono tracking-widest" onkeypress="if(event.key==='Enter') checkPw()" />
+        <button onclick="checkPw()" class="w-full py-3 bg-teal-500 hover:bg-teal-400 text-slate-950 font-bold text-sm rounded-xl transition-all">Anmelden</button>
       </div>
-      <p id="pw-err" class="text-xs text-red-400 font-medium hidden">⚠️ Falsches Passwort!</p>
+      <p id="pw-err" class="text-xs text-red-400 font-medium hidden"></p>
     </div>
   </div>
 
@@ -39,6 +40,7 @@
           <div class="w-3.5 h-3.5 rounded-full bg-emerald-500 animate-pulse"></div>
           <h1 class="font-bold text-xl text-teal-400 tracking-wide">🐾 VetFlow <span class="text-xs text-slate-400 font-normal">| Praxis-Zentrale</span></h1>
           <span id="mode" class="text-[10px] px-2 py-0.5 rounded-full border"></span>
+          <button onclick="TP.auth.logout()" class="text-[10px] px-2 py-0.5 rounded-full border border-slate-700 text-slate-400 hover:text-slate-100">Abmelden</button>
         </div>
         <nav class="flex bg-slate-950 p-1.5 rounded-xl border border-slate-800 overflow-x-auto max-w-full gap-1" id="nav"></nav>
       </div>
@@ -144,15 +146,15 @@
     let tab = 'cases', tickets = [], customers = [], team = [];
 
     // ---- Login ----
-    function checkPw() {
-      if ($('pw').value === C.PASSWORDS.praxis) unlock();
-      else $('pw-err').classList.remove('hidden');
+    async function checkPw() {
+      const r = await TP.auth.login($('email').value, $('pw').value, ['praxis']);
+      if (r.ok) unlock();
+      else { $('pw-err').innerText = '⚠️ ' + r.error; $('pw-err').classList.remove('hidden'); }
     }
     async function unlock() {
       $('auth-overlay').classList.add('hidden');
       $('app').classList.remove('hidden');
       $('app').classList.add('flex');
-      sessionStorage.setItem('tp_praxis_auth', 'true');
       $('mode').innerText = store.live ? '🟢 Live (Supabase)' : '🟡 Demo-Modus (nur dieses Gerät)';
       $('mode').className = 'text-[10px] px-2 py-0.5 rounded-full border ' + (store.live
         ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'bg-orange-500/10 text-orange-400 border-orange-500/20');
@@ -163,7 +165,10 @@
       await load();
       ['tickets', 'team', 'customers'].forEach(t => store.subscribe(t, load));
     }
-    window.addEventListener('DOMContentLoaded', () => { if (sessionStorage.getItem('tp_praxis_auth') === 'true') unlock(); });
+    window.addEventListener('DOMContentLoaded', async () => {
+      if (!TP.auth.live) $('email').classList.add('hidden');
+      if (await TP.auth.resume(['praxis'])) unlock();
+    });
 
     async function load() {
       try { [tickets, customers, team] = await Promise.all([store.list('tickets'), store.list('customers'), store.list('team')]); } catch (e) {}

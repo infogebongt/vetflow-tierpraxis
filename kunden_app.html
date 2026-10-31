@@ -115,7 +115,7 @@
     const FIELDS = { name: 'cust-name', email: 'cust-email', phone: 'cust-phone', address: 'cust-address' };
 
     function myIds() {
-      try { return JSON.parse(localStorage.getItem('tp_my_ticket_ids')) || []; } catch (e) { return []; }
+      try { return JSON.parse(localStorage.getItem('tp_my_tokens')) || []; } catch (e) { return []; }
     }
 
     function showProfile(p) {
@@ -141,12 +141,12 @@
       showProfile(p);
 
       try {
-        const t = await store.insert('tickets', {
+        const t = await store.submitTicket({
           customer_name: p.name, email: p.email, phone: p.phone, address: p.address,
           patient_name: pet, species: $('pet-species').value, complaint,
-          urgency: $('urgency').value, status: 'Neu'
+          urgency: $('urgency').value
         });
-        localStorage.setItem('tp_my_ticket_ids', JSON.stringify([t.id, ...myIds()]));
+        localStorage.setItem('tp_my_tokens', JSON.stringify([t.token, ...myIds()]));
         $('complaint').value = '';
         alert('Vielen Dank! Ihre Anfrage wurde an die Praxis übermittelt.');
         renderMine();
@@ -161,7 +161,7 @@
       const ids = myIds();
       if (!ids.length) return;
       let rows = [];
-      try { rows = await store.list('tickets', { ids }); } catch (e) { return; }
+      try { rows = await store.myTickets(ids); } catch (e) { return; }
       $('my-list').innerHTML = rows.map(t => `
         <div class="bg-slate-900 border border-slate-800 p-4 rounded-xl space-y-1">
           <div class="flex justify-between items-center">
@@ -184,6 +184,7 @@
       if (saved.name && saved.address) showProfile(saved);
       renderMine();
       store.subscribe('tickets', renderMine);
+      setInterval(renderMine, 15000);
     });
   </script>
 </body>
